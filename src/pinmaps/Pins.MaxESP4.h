@@ -20,7 +20,7 @@
   #define SERIAL_TMC_HARDWARE_UART
   #define SERIAL_TMC            Serial1          // Use a single hardware serial port to up to four drivers
   #define SERIAL_TMC_BAUD       460800           // Baud rate
-  #define SERIAL_TMC_RX         39               // Recieving data
+  #define SERIAL_TMC_RX         25               // Recieving data
   #define SERIAL_TMC_TX         4                // Transmit data
   #define SERIAL_TMC_ADDRESS_MAP(x) ((x==4)?2 : x) // Axis1(0) is 0, Axis2(1) is 1, Axis3(2) is 2, Axis4(3) is 3, Axis5(4) is 2
 #endif
@@ -30,13 +30,13 @@
 #define I2C_SCL_PIN             22
 
 // The multi-purpose pins (Aux3..Aux8 can be analog pwm/dac if supported)
-#define AUX2_PIN                39               // M3 pin TMC UART RX
-#define AUX3_PIN                14               // Home SW for Axis1
-#define AUX4_PIN                13               // Home SW for Axis2
+#define AUX2_PIN                23               // M3 pin TMC UART RX
+#define AUX3_PIN                OFF              // Unused, freed for PARK_SIGNAL
+#define AUX4_PIN                OFF              // Unused, freed for PARK_SIGNAL
 #define AUX5_PIN                1                // TX0 main USB, etc.
 #define AUX6_PIN                3                // RX0 main USB, etc.
 #define AUX7_PIN                23               // Limit SW, PPS, etc.
-#define AUX8_PIN                25               // 1-Wire, Status LED, Reticle LED, Tone, etc.
+#define AUX8_PIN                16               // 1-Wire, Status LED, Reticle LED, Tone, etc.
 
 // Misc. pins
 #ifndef ONE_WIRE_PIN
@@ -52,14 +52,14 @@
 #ifdef STATUS_LED_ON_STATE
   #undef STATUS_LED_ON_STATE
 #endif
-#define STATUS_LED_ON_STATE HIGH
+#define STATUS_LED_ON_STATE LOW
 #ifndef STATUS_LED_PIN
   #define STATUS_LED_PIN        12               // Default LED Anode (+)
 #endif
 #ifdef MOUNT_LED_ON_STATE
   #undef MOUNT_LED_ON_STATE
 #endif
-#define MOUNT_LED_ON_STATE      HIGH
+#define MOUNT_LED_ON_STATE      LOW
 #define MOUNT_LED_PIN           STATUS_LED_PIN   // Default LED Anode (+)
 #ifndef RETICLE_LED_PIN
   #define RETICLE_LED_PIN       AUX8_PIN         // Default LED Cathode (-)
@@ -80,6 +80,11 @@
   #define LIMIT_SENSE_PIN       AUX7_PIN
 #endif
 
+// Park/Home button pin (shorted to ground to trigger)
+#ifndef PARK_SIGNAL_PIN
+  #define PARK_SIGNAL_PIN       17               // ESP32-WROOM module pin 28 is GPIO17
+#endif
+
 #define SHARED_DIRECTION_PINS                    // Hint that the direction pins are shared
 #define SHARED_ENABLE_PIN       5                // Hint that the enable pins are shared
 
@@ -89,8 +94,8 @@
 #define AXIS1_M1_PIN            OFF              // hardwired for TMC UART address 0
 #define AXIS1_M2_PIN            OFF              // UART TX
 #define AXIS1_M3_PIN            OFF              // UART RX
-#define AXIS1_STEP_PIN          18
-#define AXIS1_DIR_PIN           0                // [must be high at boot 0]
+#define AXIS1_STEP_PIN          19
+#define AXIS1_DIR_PIN           18                // [must be high at boot 0]
 #ifndef AXIS1_SENSE_HOME_PIN
   #define AXIS1_SENSE_HOME_PIN  AUX3_PIN
 #endif

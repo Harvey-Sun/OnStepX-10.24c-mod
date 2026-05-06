@@ -13,6 +13,7 @@
 #include "../guide/Guide.h"
 #include "../home/Home.h"
 #include "../limits/Limits.h"
+#include "../status/Status.h"
 #include "../../../lib/sense/Sense.h"
 
 void parkSignalWrapper() { park.signal(); }
@@ -289,8 +290,18 @@ CommandError Park::restore(bool withTrackingOn) {
 // check input pin to initiate a park operation, if allowed
 void Park::signal() {
   #if PARK_SIGNAL != OFF && PARK_SIGNAL_PIN != OFF
-    if (sense.isOn(parkSignalHandle) && state == PS_UNPARKED && !mount.isSlewing() && !mount.isHome()) {
-      request();
+    static uint8_t count = 0;
+    if (sense.isOn(parkSignalHandle)) {
+      count++;
+      if (count == 3) {
+        if (!mount.isSlewing() && home.state == HS_NONE) {
+          VLF("MSG: Mount, park signal triggered homing");
+          mountStatus.soundBeep();
+          home.request();
+        }
+      }
+    } else {
+      count = 0;
     }
   #endif
 }
