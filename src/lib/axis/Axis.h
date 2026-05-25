@@ -99,7 +99,7 @@ typedef struct AxisErrors {
 } AxisErrors;
 
 enum AutoRate: uint8_t {AR_NONE, AR_RATE_BY_TIME_ABORT, AR_RATE_BY_TIME_END, AR_RATE_BY_DISTANCE, AR_RATE_BY_TIME_FORWARD, AR_RATE_BY_TIME_REVERSE};
-enum HomingStage: uint8_t {HOME_NONE, HOME_FINE, HOME_SLOW, HOME_FAST};
+enum HomingStage: uint8_t {HOME_NONE, HOME_FINE, HOME_SLOW, HOME_FAST, HOME_CENTER_EXIT, HOME_CENTER_EDGE1, HOME_CENTER_EDGE2, HOME_CENTER_GOTO, HOME_CENTER_LIMIT_EXIT};
 enum AxisMeasure: uint8_t {AXIS_MEASURE_UNKNOWN, AXIS_MEASURE_MICRONS, AXIS_MEASURE_DEGREES, AXIS_MEASURE_RADIANS};
 
 class Axis {
@@ -309,6 +309,9 @@ class Axis {
     // checks for an sense error that would disallow motion in a given direction or DIR_BOTH for any motion
     bool motionErrorSensed(Direction direction);
 
+    // check if a shared min/max limit switch is active
+    bool commonLimitSensed();
+
     // calibrate the motor if required
     void calibrate(float value) { motor->calibrate(value); }
 
@@ -351,9 +354,15 @@ class Axis {
     bool decodeAxisSettings(char *s, AxisStoredSettings &a);
 
     bool validateAxisSettings(int axisNum, AxisStoredSettings a);
+
+    bool homeCenterMode();
+
+    Direction oppositeDirection(Direction direction);
     
     AxisErrors errors;
     bool lastErrorResult = false;
+    Direction commonLimitBlockedDirection = DIR_NONE;
+    bool commonLimitLastSensed = false;
 
     uint8_t axisNumber = 0;
     char axisPrefix[13] = "MSG: Axis_, ";
@@ -387,6 +396,10 @@ class Axis {
 
     // timeout for home switch detection
     unsigned long homeTimeoutTime = 0;
+    long homeCenterEdge1Steps = 0;
+    long homeCenterEdge2Steps = 0;
+    Direction homeCenterSearchDirection = DIR_REVERSE;
+    Direction homeCenterLimitDirection = DIR_NONE;
 
     // rates (in measures per second) to control motor movement
     float freq = 0.0F;

@@ -388,14 +388,19 @@ CommandError Axis::autoSlew(Direction direction, float frequency) {
 
 // slew to home using home sensor, with acceleration in "measures" per second per second
 CommandError Axis::autoSlewHome(unsigned long timeout) {
+  bool centerMode = homeCenterMode();
   if (!enabled) return CE_SLEW_ERR_IN_STANDBY;
   if (autoRate != AR_NONE) return CE_SLEW_IN_SLEW;
-  if (motionError(DIR_BOTH)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+  if (!(centerMode && homingStage == HOME_CENTER_LIMIT_EXIT) && motionError(DIR_BOTH)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
   if (motorFault()) return CE_SLEW_ERR_HARDWARE_FAULT;
 
   if (pins->axisSense.homeTrigger != OFF) {
     motor->setSynchronized(true);
-    if (homingStage == HOME_NONE) homingStage = HOME_FAST;
+    if (homingStage == HOME_NONE) {
+      if (centerMode) homeCenterSearchDirection = DIR_REVERSE;
+      homingStage = centerMode ? HOME_CENTER_EXIT : HOME_FAST;
+    }
+    if (centerMode && homingStage == HOME_CENTER_EXIT && !sense.isOn(homeSenseHandle)) homingStage = HOME_CENTER_EDGE1;
     if (autoRate == AR_NONE) {
       motor->setSlewing(true);
       V(axisPrefix); VF("autoSlewHome ");
@@ -403,9 +408,26 @@ CommandError Axis::autoSlewHome(unsigned long timeout) {
         case HOME_FAST: VF("fast "); break;
         case HOME_SLOW: VF("slow "); break;
         case HOME_FINE: VF("fine "); break;
+        case HOME_CENTER_EXIT: VF("center exit "); break;
+        case HOME_CENTER_EDGE1: VF("center edge1 "); break;
+        case HOME_CENTER_EDGE2: VF("center edge2 "); break;
+        case HOME_CENTER_GOTO: VF("center goto "); break;
+        case HOME_CENTER_LIMIT_EXIT: VF("center limit exit "); break;
         default: break;
       }
     }
+    if (centerMode) {
+      Direction direction = homeCenterSearchDirection;
+      if (homingStage == HOME_CENTER_EXIT) direction = oppositeDirection(homeCenterSearchDirection); else
+      if (homingStage == HOME_CENTER_LIMIT_EXIT) direction = oppositeDirection(homeCenterLimitDirection);
+      if (direction == DIR_FORWARD) {
+        VF("fwd@ ");
+        autoRate = AR_RATE_BY_TIME_FORWARD;
+      } else {
+        VF("rev@ ");
+        autoRate = AR_RATE_BY_TIME_REVERSE;
+      }
+    } else
     if (sense.isOn(homeSenseHandle)) {
       VF("fwd@ ");
       autoRate = AR_RATE_BY_TIME_FORWARD;
@@ -482,11 +504,38 @@ void Axis::poll() {
   errors.minLimitSensed = sense.isOn(minSenseHandle);
   errors.maxLimitSensed = sense.isOn(maxSenseHandle);
   bool commonMinMaxSensed = commonMinMaxSense && (errors.minLimitSensed || errors.maxLimitSensed);
+  if (commonMinMaxSensed) {
+    Direction direction = motor->getDirection();
+    if (!commonLimitLastSensed && (direction == DIR_FORWARD || direction == DIR_REVERSE)) {
+      commonLimitBlockedDirection = direction;
+      V(axisPrefix); VF("common min/max limit sensed, blocking ");
+      if (direction == DIR_FORWARD) { VLF("forward"); } else { VLF("reverse"); }
+    }
+  } else {
+    commonLimitBlockedDirection = DIR_NONE;
+  }
+  commonLimitLastSensed = commonMinMaxSensed;
 
   // stop homing as we pass by the switch or times out
   if (homingStage != HOME_NONE && (autoRate == AR_RATE_BY_TIME_FORWARD || autoRate == AR_RATE_BY_TIME_REVERSE)) {
-    if (autoRate == AR_RATE_BY_TIME_FORWARD && !sense.isOn(homeSenseHandle)) autoSlewStop();
-    if (autoRate == AR_RATE_BY_TIME_REVERSE && sense.isOn(homeSenseHandle)) autoSlewStop();
+    if (homeCenterMode()) {
+      bool homingCenterStage = homingStage == HOME_CENTER_EXIT || homingStage == HOME_CENTER_EDGE1 || homingStage == HOME_CENTER_EDGE2;
+      if (homingCenterStage && commonMinMaxSensed && commonLimitBlockedDirection != DIR_NONE) {
+        homeCenterLimitDirection = commonLimitBlockedDirection;
+        homeCenterSearchDirection = oppositeDirection(homeCenterLimitDirection);
+        homingStage = HOME_CENTER_LIMIT_EXIT;
+        V(axisPrefix); VLF("home center limit sensed, reversing search direction");
+        autoSlewStop();
+      } else {
+        if (homingStage == HOME_CENTER_LIMIT_EXIT && !commonMinMaxSensed) autoSlewStop();
+        if (homingStage == HOME_CENTER_EXIT && !sense.isOn(homeSenseHandle)) autoSlewStop();
+        if (homingStage == HOME_CENTER_EDGE1 && sense.isOn(homeSenseHandle)) autoSlewStop();
+        if (homingStage == HOME_CENTER_EDGE2 && !sense.isOn(homeSenseHandle)) autoSlewStop();
+      }
+    } else {
+      if (autoRate == AR_RATE_BY_TIME_FORWARD && !sense.isOn(homeSenseHandle)) autoSlewStop();
+      if (autoRate == AR_RATE_BY_TIME_REVERSE && sense.isOn(homeSenseHandle)) autoSlewStop();
+    }
     if ((long)(millis() - homeTimeoutTime) > 0) {
       V(axisPrefix); VLF("autoSlewHome timed out");
       autoSlewAbort();
@@ -519,6 +568,7 @@ void Axis::poll() {
         motor->setSlewing(false);
         autoRate = AR_NONE;
         freq = 0.0F;
+        if (homingStage == HOME_CENTER_GOTO) homingStage = HOME_NONE;
         motor->setSynchronized(true);
         V(axisPrefix); VLF("slew stopped");
       } else {
@@ -538,7 +588,7 @@ void Axis::poll() {
       if (freq < -slewFreq) freq = -slewFreq;
     } else
     if (autoRate == AR_RATE_BY_TIME_END) {
-      if (commonMinMaxSensed) {
+      if (commonMinMaxSensed && !(homeCenterMode() && homingStage == HOME_CENTER_LIMIT_EXIT)) {
         V(axisPrefix); VLF("commonMinMaxSensed");
         autoSlewAbort();
         return;
@@ -549,6 +599,24 @@ void Axis::poll() {
         motor->setSlewing(false);
         autoRate = AR_NONE;
         freq = 0.0F;
+        if (homingStage == HOME_CENTER_EXIT) {
+          homingStage = HOME_CENTER_EDGE1;
+        } else
+        if (homingStage == HOME_CENTER_LIMIT_EXIT) {
+          if (!commonMinMaxSensed) homingStage = sense.isOn(homeSenseHandle) ? HOME_CENTER_EXIT : HOME_CENTER_EDGE1;
+        } else
+        if (homingStage == HOME_CENTER_EDGE1) {
+          homeCenterEdge1Steps = getInstrumentCoordinateSteps();
+          homingStage = HOME_CENTER_EDGE2;
+        } else
+        if (homingStage == HOME_CENTER_EDGE2) {
+          homeCenterEdge2Steps = getInstrumentCoordinateSteps();
+          long center = homeCenterEdge1Steps + (homeCenterEdge2Steps - homeCenterEdge1Steps)/2;
+          setTargetCoordinateSteps(center);
+          homingStage = HOME_CENTER_GOTO;
+          setFrequencySlew(fabs(slewFreq)/6.0F);
+          autoGoto();
+        } else
         if (homingStage == HOME_FAST) homingStage = HOME_SLOW; else 
         if (homingStage == HOME_SLOW) {
           if (!sense.isOn(homeSenseHandle)) homingStage = HOME_FINE; else {
@@ -558,10 +626,12 @@ void Axis::poll() {
         } else
         if (homingStage == HOME_FINE) homingStage = HOME_NONE;
         if (homingStage != HOME_NONE) {
-          float f = fabs(slewFreq)/6.0F;
-          if (f < 0.0003F) f = 0.0003F;
-          setFrequencySlew(f);
-          autoSlewHome(SLEW_HOME_REFINE_TIME_LIMIT * 1000);
+          if (homingStage != HOME_CENTER_GOTO) {
+            float f = fabs(slewFreq)/6.0F;
+            if (f < 0.0003F) f = 0.0003F;
+            setFrequencySlew(f);
+            autoSlewHome(SLEW_HOME_REFINE_TIME_LIMIT * 1000);
+          }
         } else {
           V(axisPrefix); VLF("slew stopped");
         }
@@ -578,7 +648,13 @@ void Axis::poll() {
     } else freq = 0.0F;
   } else {
     freq = 0.0F;
-    if (commonMinMaxSensed || motionError(DIR_BOTH) || motorFault()) baseFreq = 0.0F;
+    if (commonMinMaxSensed) {
+      Direction baseDirection = DIR_NONE;
+      if (baseFreq > 0.0F) baseDirection = DIR_FORWARD; else
+      if (baseFreq < 0.0F) baseDirection = DIR_REVERSE;
+      if (baseDirection == DIR_NONE || motionError(baseDirection) || motorFault()) baseFreq = 0.0F;
+    } else
+    if (motionError(DIR_BOTH) || motorFault()) baseFreq = 0.0F;
   }
   Y;
 
@@ -687,6 +763,14 @@ void Axis::setMotionLimitsCheck(bool state) {
 bool Axis::motionError(Direction direction) {
   bool result = false;
 
+  if (commonMinMaxSense && (errors.minLimitSensed || errors.maxLimitSensed)) {
+    if (direction == DIR_BOTH || commonLimitBlockedDirection == DIR_NONE) result = true; else
+    if (direction == commonLimitBlockedDirection) result = true;
+    if (result == true && result != lastErrorResult) { V(axisPrefix); VLF("motion error common limit"); }
+    lastErrorResult = result;
+    return lastErrorResult;
+  }
+
   if (direction == DIR_FORWARD || direction == DIR_BOTH) {
     result = getInstrumentCoordinateSteps() > lroundf(0.9F*INT32_MAX) ||
              (limitsCheck && homingStage == HOME_NONE && getInstrumentCoordinate() > settings.limits.max) ||
@@ -708,8 +792,28 @@ bool Axis::motionError(Direction direction) {
 
 // checks for an sense error that would disallow motion in a given direction or DIR_BOTH for any motion
 bool Axis::motionErrorSensed(Direction direction) {
+  if (commonMinMaxSense && (errors.minLimitSensed || errors.maxLimitSensed)) {
+    if (direction == DIR_BOTH || commonLimitBlockedDirection == DIR_NONE) return true; else
+    return direction == commonLimitBlockedDirection;
+  }
   if ((direction == DIR_REVERSE || direction == DIR_BOTH) && errors.minLimitSensed) return true; else
   if ((direction == DIR_FORWARD || direction == DIR_BOTH) && errors.maxLimitSensed) return true; else return false;
+}
+
+bool Axis::commonLimitSensed() {
+  return commonMinMaxSense && (errors.minLimitSensed || errors.maxLimitSensed);
+}
+
+bool Axis::homeCenterMode() {
+  if (axisNumber == 1) return AXIS1_SENSE_HOME_CENTER == ON;
+  if (axisNumber == 2) return AXIS2_SENSE_HOME_CENTER == ON;
+  return false;
+}
+
+Direction Axis::oppositeDirection(Direction direction) {
+  if (direction == DIR_FORWARD) return DIR_REVERSE;
+  if (direction == DIR_REVERSE) return DIR_FORWARD;
+  return DIR_NONE;
 }
 
 #endif

@@ -244,6 +244,9 @@
 #ifndef AXIS1_SENSE_HOME_DIST_LIMIT
 #define AXIS1_SENSE_HOME_DIST_LIMIT   180.0                       // max distance in degrees
 #endif
+#ifndef AXIS1_SENSE_HOME_CENTER
+#define AXIS1_SENSE_HOME_CENTER       OFF                         // ON finds both edges of a narrow home slot and centers it
+#endif
 #ifndef AXIS1_SENSE_LIMIT_MIN
 #define AXIS1_SENSE_LIMIT_MIN         LIMIT_SENSE                 // HIGH/LOW to activate min limit
 #endif
@@ -421,6 +424,9 @@
 #endif
 #ifndef AXIS2_SENSE_HOME_DIST_LIMIT
 #define AXIS2_SENSE_HOME_DIST_LIMIT   180.0                       // max distance in degrees
+#endif
+#ifndef AXIS2_SENSE_HOME_CENTER
+#define AXIS2_SENSE_HOME_CENTER       OFF                         // ON finds both edges of a narrow home slot and centers it
 #endif
 #ifndef AXIS2_SENSE_LIMIT_MIN
 #define AXIS2_SENSE_LIMIT_MIN         LIMIT_SENSE                 // HIGH/LOW to activate min limit
