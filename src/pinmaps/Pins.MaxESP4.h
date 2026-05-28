@@ -52,7 +52,7 @@
 #ifdef STATUS_LED_ON_STATE
   #undef STATUS_LED_ON_STATE
 #endif
-#define STATUS_LED_ON_STATE LOW
+#define STATUS_LED_ON_STATE     LOW
 #ifndef STATUS_LED_PIN
   #define STATUS_LED_PIN        12               // Default LED Anode (+)
 #endif
