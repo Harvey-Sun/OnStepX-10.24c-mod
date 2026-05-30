@@ -226,10 +226,13 @@ void Telescope::init(const char *fwName, int fwMajor, int fwMinor, const char *f
 
   // bring up status LED and flash error codes
   #if STATUS_LED != OFF && STATUS_LED_PIN != OFF
-    int pin = STATUS_LED_PIN;
-    pinModeEx(pin, OUTPUT);
-    VF("MSG: Telescope, start status LED task (rate 500ms priority 4)... ");
-    if (tasks.add(500, 0, true, 4, statusFlash, "StaLed")) { VLF("success"); } else { VLF("FAILED!"); }
+    // The mount LED may already own a shared status LED pin when standby power is enabled.
+    if (!tasks.getHandleByName("mntLed")) {
+      int pin = STATUS_LED_PIN;
+      pinModeEx(pin, OUTPUT);
+      VF("MSG: Telescope, start status LED task (rate 500ms priority 4)... ");
+      if (tasks.add(500, 0, true, 4, statusFlash, "StaLed")) { VLF("success"); } else { VLF("FAILED!"); }
+    }
   #endif
 }
 
