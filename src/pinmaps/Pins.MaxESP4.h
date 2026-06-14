@@ -52,7 +52,7 @@
 #ifdef STATUS_LED_ON_STATE
   #undef STATUS_LED_ON_STATE
 #endif
-#define STATUS_LED_ON_STATE LOW
+#define STATUS_LED_ON_STATE     LOW
 #ifndef STATUS_LED_PIN
   #define STATUS_LED_PIN        12               // Default LED Anode (+)
 #endif
@@ -75,11 +75,33 @@
   #define PPS_SENSE_PIN         AUX7_PIN         // PPS time source, GPS for example
 #endif
 
-// The limit switch sense is a logic level input normally pull high (2k resistor,) shorted to ground it stops gotos/tracking
+// The global limit switch input is unused by this custom mount; axis-specific
+// photo-interrupter limit inputs are defined below.
 #ifndef LIMIT_SENSE_PIN
-  #define LIMIT_SENSE_PIN       AUX7_PIN
+  #define LIMIT_SENSE_PIN       OFF
 #endif
 
+// Custom photo-interrupter home/limit inputs for the modified GEM mount.
+// Fill these with real GPIO numbers after wiring. They intentionally do not
+// reuse the ST4 connector pins.
+#ifndef AXIS1_SENSE_HOME_PIN
+  #define AXIS1_SENSE_HOME_PIN       OFF
+#endif
+#ifndef AXIS1_SENSE_LIMIT_MIN_PIN
+  #define AXIS1_SENSE_LIMIT_MIN_PIN  OFF
+#endif
+#ifndef AXIS1_SENSE_LIMIT_MAX_PIN
+  #define AXIS1_SENSE_LIMIT_MAX_PIN  AXIS1_SENSE_LIMIT_MIN_PIN
+#endif
+#ifndef AXIS2_SENSE_HOME_PIN
+  #define AXIS2_SENSE_HOME_PIN       OFF
+#endif
+#ifndef AXIS2_SENSE_LIMIT_MIN_PIN
+  #define AXIS2_SENSE_LIMIT_MIN_PIN  OFF
+#endif
+#ifndef AXIS2_SENSE_LIMIT_MAX_PIN
+  #define AXIS2_SENSE_LIMIT_MAX_PIN  AXIS2_SENSE_LIMIT_MIN_PIN
+#endif
 // Park/Home button pin (shorted to ground to trigger)
 #ifndef PARK_SIGNAL_PIN
   #define PARK_SIGNAL_PIN       17               // ESP32-WROOM module pin 28 is GPIO17

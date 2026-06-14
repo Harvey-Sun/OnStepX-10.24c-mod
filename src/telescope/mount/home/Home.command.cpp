@@ -14,7 +14,7 @@ bool Home::command(char *reply, char *command, char *parameter, bool *supressFra
     // :h?#       Get home status - has sense, auto home enabled, offset axis1, offset axis2 (in arcseconds.)
     //            Returns: n,n,n,n#
     if (command[1] == '?' && parameter[0] == 0) {
-      sprintf(reply, "%d,%ld,%ld",  (int)hasSense, settings.axis1.senseOffset, settings.axis2.senseOffset);
+      sprintf(reply, "%d,%d,%ld,%ld", (int)hasSense, (int)settings.automaticAtBoot, settings.axis1.senseOffset, settings.axis2.senseOffset);
       *numericReply = false;
     } else
 
@@ -46,7 +46,7 @@ bool Home::command(char *reply, char *command, char *parameter, bool *supressFra
         setReversal();
       } else {
         long l = atol(&parameter[2]);
-        if (l >= -648000 || l <= 648000) {
+        if (l >= -648000 && l <= 648000) {
           settings.axis1.senseOffset = l;
         } else *commandError = CE_PARAM_RANGE;
       }
@@ -63,7 +63,7 @@ bool Home::command(char *reply, char *command, char *parameter, bool *supressFra
         setReversal();
       } else {
         long l = atol(&parameter[2]);
-        if (l >= -648000 || l <= 648000) {
+        if (l >= -648000 && l <= 648000) {
           settings.axis2.senseOffset = l;
         } else *commandError = CE_PARAM_RANGE;
       }

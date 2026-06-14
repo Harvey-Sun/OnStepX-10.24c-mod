@@ -341,14 +341,20 @@ CommandError Guide::validate(int axis, GuideAction guideAction) {
   if (axis == 1 || guideAction == GA_SPIRAL) {
     if (!validAxis1(guideAction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     if (settings.axis1RateSelect < 3) {
-      if (limits.isError() || axis1.motionError(DIR_BOTH)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+      Direction direction = DIR_BOTH;
+      if (guideAction == GA_REVERSE) direction = DIR_REVERSE; else
+      if (guideAction == GA_FORWARD) direction = DIR_FORWARD;
+      if (limits.isMotionError(1, direction) || axis1.motionError(direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     }
   }
 
   if (axis == 2 || guideAction == GA_SPIRAL) {
     if (!validAxis2(guideAction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     if (settings.axis2RateSelect < 3) {
-      if (limits.isError() || axis2.motionError(DIR_BOTH)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+      Direction direction = DIR_BOTH;
+      if (guideAction == GA_REVERSE) direction = (pierSide == PIER_SIDE_WEST) ? DIR_FORWARD : DIR_REVERSE; else
+      if (guideAction == GA_FORWARD) direction = (pierSide == PIER_SIDE_WEST) ? DIR_REVERSE : DIR_FORWARD;
+      if (limits.isMotionError(2, direction) || axis2.motionError(direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     }
   }
 
