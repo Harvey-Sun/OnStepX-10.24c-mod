@@ -318,8 +318,15 @@ void Axis::setSlewAccelerationTimeAbort(float seconds) {
 CommandError Axis::autoGoto(float frequency) {
   if (!enabled) return CE_SLEW_ERR_IN_STANDBY;
   if (autoRate != AR_NONE) return CE_SLEW_IN_SLEW;
-  if (motionError(DIR_BOTH)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+  long targetDistance = motor->getTargetDistanceSteps();
+  Direction direction = DIR_NONE;
+  if (targetDistance > 0) direction = DIR_FORWARD;
+  if (targetDistance < 0) direction = DIR_REVERSE;
+  if (direction != DIR_NONE && motionError(direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
   if (motorFault()) return CE_SLEW_ERR_HARDWARE_FAULT;
+
+  limitDecelerationActive = false;
+  limitDecelerationDirection = DIR_NONE;
 
   if (!isnan(frequency)) setFrequencySlew(frequency);
 
@@ -351,6 +358,9 @@ CommandError Axis::autoSlew(Direction direction, float frequency) {
   if (direction != DIR_FORWARD && direction != DIR_REVERSE) return CE_SLEW_ERR_UNSPECIFIED;
   if (motionError(direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
   if (motorFault()) return CE_SLEW_ERR_HARDWARE_FAULT;
+
+  limitDecelerationActive = false;
+  limitDecelerationDirection = DIR_NONE;
 
   if (!isnan(frequency)) setFrequencySlew(frequency);
 
@@ -442,6 +452,20 @@ void Axis::autoSlewStop() {
 
 // emergency stops, with deacceleration by time
 void Axis::autoSlewAbort() {
+  Direction direction = motor->getDirection();
+  if (homingStage == HOME_NONE &&
+      autoRate >= AR_RATE_BY_TIME_END &&
+      motionErrorSensed(direction)) {
+    limitDecelerationActive = true;
+    limitDecelerationDirection = direction;
+    V(axisPrefix); VLF("limit sensed, slew stopping at 2x deceleration");
+    autoSlewStop();
+    return;
+  }
+
+  // A physical limit stop uses a controlled 2x slew deceleration. Do not let
+  // a subsequent guide/goto abort replace it with the rapid-stop ramp.
+  if (limitDecelerationActive && autoRate == AR_RATE_BY_TIME_END) return;
   if (autoRate <= AR_RATE_BY_TIME_ABORT) return;
 
   motor->setSynchronized(true);
@@ -478,11 +502,32 @@ void Axis::poll() {
     }
   #endif
 
-  // check physical limit switches
-  errors.minLimitSensed = sense.isOn(minSenseHandle);
-  errors.maxLimitSensed = sense.isOn(maxSenseHandle);
-  bool commonMinMaxSensed = commonMinMaxSense && (errors.minLimitSensed || errors.maxLimitSensed);
-
+  // Check physical limit switches. When min/max share one input, remember the
+  // direction that activated it so motion away from the switch remains allowed.
+  bool minLimitSensed = sense.isOn(minSenseHandle);
+  bool maxLimitSensed = sense.isOn(maxSenseHandle);
+  if (commonMinMaxSense) {
+    bool commonLimitSensed = minLimitSensed || maxLimitSensed;
+    if (commonLimitSensed) {
+      if (commonLimitDirection == DIR_NONE) {
+        Direction direction = motor->getDirection();
+        if (direction == DIR_FORWARD || direction == DIR_REVERSE) {
+          commonLimitDirection = direction;
+          V(axisPrefix); VF("common limit direction latched ");
+          if (direction == DIR_FORWARD) VLF("forward"); else VLF("reverse");
+        }
+      }
+      errors.minLimitSensed = commonLimitDirection != DIR_FORWARD;
+      errors.maxLimitSensed = commonLimitDirection != DIR_REVERSE;
+    } else {
+      commonLimitDirection = DIR_NONE;
+      errors.minLimitSensed = false;
+      errors.maxLimitSensed = false;
+    }
+  } else {
+    errors.minLimitSensed = minLimitSensed;
+    errors.maxLimitSensed = maxLimitSensed;
+  }
   // stop homing as we pass by the switch or times out
   if (homingStage != HOME_NONE && (autoRate == AR_RATE_BY_TIME_FORWARD || autoRate == AR_RATE_BY_TIME_REVERSE)) {
     if (autoRate == AR_RATE_BY_TIME_FORWARD && !sense.isOn(homeSenseHandle)) autoSlewStop();
@@ -498,23 +543,23 @@ void Axis::poll() {
   if (autoRate != AR_NONE && !motor->inBacklash) {
 
     if (autoRate != AR_RATE_BY_TIME_ABORT) {
+      bool limitDecelerating = limitDecelerationActive && autoRate == AR_RATE_BY_TIME_END;
       if (motionError(motor->getDirection())) {
-        V(axisPrefix); VLF("motion error");
-        autoSlewAbort();
-        return;
+        if (!limitDecelerating) {
+          V(axisPrefix); VLF("motion error");
+          autoSlewAbort();
+          return;
+        }
       }
       if (motorFault()) {
         V(axisPrefix); VLF("motor fault");
+        limitDecelerationActive = false;
+        limitDecelerationDirection = DIR_NONE;
         autoSlewAbort();
         return;
       }
     }
     if (autoRate == AR_RATE_BY_DISTANCE) {
-      if (commonMinMaxSensed) {
-        V(axisPrefix); VLF("commonMinMaxSensed");
-        autoSlewAbort();
-        return;
-      }
       if (atTarget()) {
         motor->setSlewing(false);
         autoRate = AR_NONE;
@@ -538,17 +583,14 @@ void Axis::poll() {
       if (freq < -slewFreq) freq = -slewFreq;
     } else
     if (autoRate == AR_RATE_BY_TIME_END) {
-      if (commonMinMaxSensed) {
-        V(axisPrefix); VLF("commonMinMaxSensed");
-        autoSlewAbort();
-        return;
-      }
-
-      if (freq > slewAccelRateFs) freq -= slewAccelRateFs; else if (freq < -slewAccelRateFs) freq += slewAccelRateFs; else freq = 0.0F;
-      if (fabs(freq) <= slewAccelRateFs) {
+      float decelerationRate = limitDecelerationActive ? slewAccelRateFs*2.0F : slewAccelRateFs;
+      if (freq > decelerationRate) freq -= decelerationRate; else if (freq < -decelerationRate) freq += decelerationRate; else freq = 0.0F;
+      if (fabs(freq) <= decelerationRate) {
         motor->setSlewing(false);
         autoRate = AR_NONE;
         freq = 0.0F;
+        limitDecelerationActive = false;
+        limitDecelerationDirection = DIR_NONE;
         if (homingStage == HOME_FAST) homingStage = HOME_SLOW; else 
         if (homingStage == HOME_SLOW) {
           if (!sense.isOn(homeSenseHandle)) homingStage = HOME_FINE; else {
@@ -578,7 +620,7 @@ void Axis::poll() {
     } else freq = 0.0F;
   } else {
     freq = 0.0F;
-    if (commonMinMaxSensed || motionError(DIR_BOTH) || motorFault()) baseFreq = 0.0F;
+    if (motorFault()) baseFreq = 0.0F;
   }
   Y;
 
@@ -652,13 +694,21 @@ void Axis::setFrequency(float frequency) {
     }
   }
 
-  // apply base frequency as required
+  // Apply base frequency, then block only the direction that is limited.
+  // Manual, goto, guide, and tracking rates all pass through this point.
   if (enabled) {
-    if (autoRate == AR_NONE) {
-      motor->setFrequencySteps((frequency + baseFreq)*settings.stepsPerMeasure);
-    } else {
-      motor->setFrequencySteps(frequency*settings.stepsPerMeasure);
+    float requestedFrequency = autoRate == AR_NONE ? frequency + baseFreq : frequency;
+    Direction requestedDirection = DIR_NONE;
+    if (requestedFrequency > 0.0F) requestedDirection = DIR_FORWARD;
+    if (requestedFrequency < 0.0F) requestedDirection = DIR_REVERSE;
+    bool allowLimitDeceleration = limitDecelerationActive &&
+                                  autoRate == AR_RATE_BY_TIME_END &&
+                                  requestedDirection == limitDecelerationDirection;
+    if (!allowLimitDeceleration) {
+      if (requestedDirection == DIR_FORWARD && motionError(DIR_FORWARD)) requestedFrequency = 0.0F;
+      if (requestedDirection == DIR_REVERSE && motionError(DIR_REVERSE)) requestedFrequency = 0.0F;
     }
+    motor->setFrequencySteps(requestedFrequency*settings.stepsPerMeasure);
   } else {
     motor->setFrequencySteps(0.0F);
   }
@@ -690,14 +740,14 @@ bool Axis::motionError(Direction direction) {
   if (direction == DIR_FORWARD || direction == DIR_BOTH) {
     result = getInstrumentCoordinateSteps() > lroundf(0.9F*INT32_MAX) ||
              (limitsCheck && homingStage == HOME_NONE && getInstrumentCoordinate() > settings.limits.max) ||
-             (!commonMinMaxSense && errors.maxLimitSensed);
+             errors.maxLimitSensed;
     if (result == true && result != lastErrorResult) { V(axisPrefix); VLF("motion error forward limit"); }
   } else
 
   if (direction == DIR_REVERSE || direction == DIR_BOTH) {
     result = getInstrumentCoordinateSteps() < lroundf(0.9F*INT32_MIN) ||
              (limitsCheck && homingStage == HOME_NONE && getInstrumentCoordinate() < settings.limits.min) ||
-             (!commonMinMaxSense && errors.minLimitSensed);
+             errors.minLimitSensed;
     if (result == true && result != lastErrorResult) { V(axisPrefix); VLF("motion error reverse limit"); }
   }
 

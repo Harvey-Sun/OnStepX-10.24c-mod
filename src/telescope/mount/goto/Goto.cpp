@@ -651,6 +651,18 @@ CommandError Goto::startAutoSlew() {
 
   VF("MSG: Mount, goto target coordinates set (a1="); V(radToDeg(a1)); VF(" deg, a2="); V(radToDeg(a2)); VLF(" deg)");
 
+  int64_t axis1Distance = (int64_t)axis1.getTargetCoordinateSteps() - axis1.getInstrumentCoordinateSteps();
+  Direction axis1Direction = DIR_NONE;
+  if (axis1Distance > 0) axis1Direction = DIR_FORWARD;
+  if (axis1Distance < 0) axis1Direction = DIR_REVERSE;
+  if (axis1Direction != DIR_NONE && axis1.motionError(axis1Direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+
+  int64_t axis2Distance = (int64_t)axis2.getTargetCoordinateSteps() - axis2.getInstrumentCoordinateSteps();
+  Direction axis2Direction = DIR_NONE;
+  if (axis2Distance > 0) axis2Direction = DIR_FORWARD;
+  if (axis2Distance < 0) axis2Direction = DIR_REVERSE;
+  if (axis2Direction != DIR_NONE && axis2.motionError(axis2Direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+
   e = axis1.autoGoto(radsPerSecondCurrent);
   if (e == CE_NONE) e = axis2.autoGoto(radsPerSecondCurrent*((float)(AXIS2_SLEW_RATE_PERCENT)/100.0F));
 

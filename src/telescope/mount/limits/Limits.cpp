@@ -204,16 +204,27 @@ bool Limits::isError() {
          error.meridian.west;
 }
 
+// true if an error exists that cannot be escaped by moving away from a physical limit switch
+bool Limits::isErrorExceptLimitSense() {
+  return initError.nv ||
+         initError.value ||
+         initError.tls ||
+         error.altitude.min ||
+         error.altitude.max ||
+         error.limit.axis1.min ||
+         error.limit.axis1.max ||
+         error.limit.axis2.min ||
+         error.limit.axis2.max ||
+         error.meridian.east ||
+         error.meridian.west;
+}
+
 // true if an error exists that impacts goto safety
 bool Limits::isGotoError() {
   return initError.nv ||
          initError.value ||
          !site.dateIsReady ||
-         !site.timeIsReady ||
-         error.limitSense.axis1.min ||
-         error.limitSense.axis1.max ||
-         error.limitSense.axis2.min ||
-         error.limitSense.axis2.max;
+         !site.timeIsReady;
 }
 
 // return general error code

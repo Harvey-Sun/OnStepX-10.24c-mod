@@ -353,6 +353,9 @@ class Axis {
     bool validateAxisSettings(int axisNum, AxisStoredSettings a);
     
     AxisErrors errors;
+    Direction commonLimitDirection = DIR_NONE;
+    Direction limitDecelerationDirection = DIR_NONE;
+    bool limitDecelerationActive = false;
     bool lastErrorResult = false;
 
     uint8_t axisNumber = 0;
