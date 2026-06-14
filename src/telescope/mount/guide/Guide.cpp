@@ -345,7 +345,7 @@ CommandError Guide::validate(int axis, GuideAction guideAction) {
     if (guideAction == GA_FORWARD) direction = DIR_FORWARD;
     if (axis1.motionError(direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     if (settings.axis1RateSelect < 3) {
-      if (limits.isErrorExceptLimitSense()) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+      if (limits.isMotionError(1, direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     }
   }
 
@@ -361,7 +361,7 @@ CommandError Guide::validate(int axis, GuideAction guideAction) {
     }
     if (axis2.motionError(direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     if (settings.axis2RateSelect < 3) {
-      if (limits.isErrorExceptLimitSense()) return CE_SLEW_ERR_OUTSIDE_LIMITS;
+      if (limits.isMotionError(2, direction)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
     }
   }
 

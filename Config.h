@@ -88,9 +88,10 @@
 
 #define AXIS1_POWER_DOWN              OFF //    OFF, ON Powers off 30sec after movement stops or 10min after last<=1x guide.  Infreq
 
-#define AXIS1_SENSE_HOME              LOW //    OFF, HIGH or LOW enables & state clockwise home position, as seen from front. Option
-#define AXIS1_SENSE_LIMIT_MIN         LOW // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
-#define AXIS1_SENSE_LIMIT_MAX         LOW // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
+#define AXIS1_SENSE_HOME        LOW|HYST(10) // OFF, HIGH or LOW enables & state clockwise home position, as seen from front. Option
+#define AXIS1_SENSE_HOME_OFFSET lround((SLEW_RATE_BASE_DESIRED/36.0F)*0.010F*3600.0F) // Compensate 10ms at final home edge speed.
+#define AXIS1_SENSE_LIMIT_MIN LOW|HYST(10) // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
+#define AXIS1_SENSE_LIMIT_MAX LOW|HYST(10) // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
                                           //         Digital, optionally add: |HYST(n) Where n=0..1023 stability time in ms.
                                           //         Analog capable sense inputs also allow adding:
                                           //         |THLD(n) Where n=1..1023 (ADU) for Analog threshold.
@@ -123,9 +124,11 @@
 
 #define AXIS2_POWER_DOWN              OFF //    OFF, ON Powers off 30sec after movement stops or 10min after last<=1x guide.  Option
 
-#define AXIS2_SENSE_HOME              LOW //    OFF, HIGH or LOW enables & state clockwise home position, as seen from above. Option
-#define AXIS2_SENSE_LIMIT_MIN         LOW // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
-#define AXIS2_SENSE_LIMIT_MAX         LOW // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
+#define AXIS2_SENSE_HOME        LOW|HYST(10) // OFF, HIGH or LOW enables & state clockwise home position, as seen from above. Option
+#define AXIS2_SENSE_HOME_OFFSET         0 // 0, n. Offset in arc-seconds from the home switch edge to the slot center.      Option
+#define AXIS2_SENSE_HOME_CENTER        ON // OFF, ON finds both edges of the narrow home slot and uses the center as home.  Option
+#define AXIS2_SENSE_LIMIT_MIN LOW|HYST(10) // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
+#define AXIS2_SENSE_LIMIT_MAX LOW|HYST(10) // ...NSE, HIGH or LOW state on limit sense switch stops movement.                  Option
 
 // MOUNT -------------------------------------------------------- see https://onstep.groups.io/g/main/wiki/Configuration_Mount#MOUNT
 #define MOUNT_TYPE                    GEM //    GEM, GEM         German Equatorial Mount, etc. that need meridian flips.     <-Req'd

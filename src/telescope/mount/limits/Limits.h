@@ -60,11 +60,11 @@ class Limits {
     // true if an limit related error is exists
     bool isError();
 
-    // true if a non-directional error exists (physical axis limit senses excluded)
-    bool isErrorExceptLimitSense();
-
     // true if an error exists that impacts goto safety
     bool isGotoError();
+
+    // true if an error exists that impacts manual motion in the specified physical axis direction
+    bool isMotionError(uint8_t axis, Direction direction);
 
     // true if an above overhead limit
     bool isAboveOverhead() { return error.altitude.max; }

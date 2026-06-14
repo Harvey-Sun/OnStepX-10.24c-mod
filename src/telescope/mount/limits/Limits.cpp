@@ -204,27 +204,36 @@ bool Limits::isError() {
          error.meridian.west;
 }
 
-// true if an error exists that cannot be escaped by moving away from a physical limit switch
-bool Limits::isErrorExceptLimitSense() {
-  return initError.nv ||
-         initError.value ||
-         initError.tls ||
-         error.altitude.min ||
-         error.altitude.max ||
-         error.limit.axis1.min ||
-         error.limit.axis1.max ||
-         error.limit.axis2.min ||
-         error.limit.axis2.max ||
-         error.meridian.east ||
-         error.meridian.west;
-}
-
 // true if an error exists that impacts goto safety
 bool Limits::isGotoError() {
   return initError.nv ||
          initError.value ||
          !site.dateIsReady ||
          !site.timeIsReady;
+}
+
+// true if an error exists that impacts manual motion in the specified physical axis direction
+bool Limits::isMotionError(uint8_t axis, Direction direction) {
+  bool axis1LimitSense = (axis == 1) ? axis1.motionErrorSensed(direction) :
+                                       (error.limitSense.axis1.min || error.limitSense.axis1.max);
+  bool axis2LimitSense = (axis == 2) ? axis2.motionErrorSensed(direction) :
+                                       (error.limitSense.axis2.min || error.limitSense.axis2.max);
+  bool axis1Limit = (axis == 1) ? axis1.motionError(direction) :
+                                  (error.limit.axis1.min || error.limit.axis1.max);
+  bool axis2Limit = (axis == 2) ? axis2.motionError(direction) :
+                                  (error.limit.axis2.min || error.limit.axis2.max);
+
+  return initError.nv ||
+         initError.value ||
+         initError.tls ||
+         error.altitude.min ||
+         error.altitude.max ||
+         axis1Limit ||
+         axis2Limit ||
+         axis1LimitSense ||
+         axis2LimitSense ||
+         error.meridian.east ||
+         error.meridian.west;
 }
 
 // return general error code
