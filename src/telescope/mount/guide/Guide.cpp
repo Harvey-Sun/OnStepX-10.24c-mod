@@ -206,13 +206,21 @@ CommandError Guide::startHome() {
       guideFinishTimeAxis1 = millis() + (unsigned long)(GUIDE_HOME_TIME_LIMIT * 1000.0);
       guideActionAxis1 = GA_HOME;
       axis1.setFrequencySlew(goTo.rate);
-      axis1.autoSlewHome();
+      e = axis1.autoSlewHome();
+      if (e != CE_NONE) {
+        abort();
+        return e;
+      }
     #endif
 
     guideFinishTimeAxis2 = millis() + (unsigned long)(GUIDE_HOME_TIME_LIMIT * 1000.0);
     guideActionAxis2 = GA_HOME;
     axis2.setFrequencySlew(goTo.rate*((float)(AXIS2_SLEW_RATE_PERCENT)/100.0F));
-    axis2.autoSlewHome();
+    e = axis2.autoSlewHome();
+    if (e != CE_NONE) {
+      abort();
+      return e;
+    }
   #endif
   return CE_NONE;
 }
@@ -465,9 +473,19 @@ void Guide::poll() {
     guideActionAxis2 = GA_NONE;
     mountStatus.soundAlert();
     if (state == GU_HOME_GUIDE) {
-      VLF("MSG: Guide, arrival at home detected");
+      bool success = true;
+      #if AXIS1_SECTOR_GEAR == ON || AXIS2_TANGENT_ARM == OFF
+        success = success && axis1.homingSucceeded();
+      #endif
+      success = success && axis2.homingSucceeded();
       state = GU_NONE;
-      home.guideDone(true);
+      if (success) {
+        VLF("MSG: Guide, arrival at home detected");
+        home.guideDone(true);
+      } else {
+        VLF("WRN: Guide, homing stopped without detecting home");
+        home.guideDone(false);
+      }
     } else {
       VLF("MSG: Guide, aborted homing");
       state = GU_NONE;

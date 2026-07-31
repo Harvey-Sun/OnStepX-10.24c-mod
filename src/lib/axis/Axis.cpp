@@ -399,14 +399,32 @@ CommandError Axis::autoSlew(Direction direction, float frequency) {
 // slew to home using home sensor, with acceleration in "measures" per second per second
 CommandError Axis::autoSlewHome(unsigned long timeout) {
   bool centerMode = homeCenterMode();
-  if (!enabled) return CE_SLEW_ERR_IN_STANDBY;
-  if (autoRate != AR_NONE) return CE_SLEW_IN_SLEW;
-  if (!(centerMode && homingStage == HOME_CENTER_LIMIT_EXIT) && motionError(DIR_BOTH)) return CE_SLEW_ERR_OUTSIDE_LIMITS;
-  if (motorFault()) return CE_SLEW_ERR_HARDWARE_FAULT;
+  bool starting = homingStage == HOME_NONE;
+  if (!enabled) {
+    if (starting) homingResult = HOME_RESULT_FAILED;
+    return CE_SLEW_ERR_IN_STANDBY;
+  }
+  if (autoRate != AR_NONE) {
+    if (starting) homingResult = HOME_RESULT_FAILED;
+    return CE_SLEW_IN_SLEW;
+  }
+  if (!(centerMode && homingStage == HOME_CENTER_LIMIT_EXIT) && motionError(DIR_BOTH)) {
+    if (starting) homingResult = HOME_RESULT_FAILED;
+    return CE_SLEW_ERR_OUTSIDE_LIMITS;
+  }
+  if (motorFault()) {
+    if (starting) homingResult = HOME_RESULT_FAILED;
+    return CE_SLEW_ERR_HARDWARE_FAULT;
+  }
+  if (pins->axisSense.homeTrigger == OFF) {
+    if (starting) homingResult = HOME_RESULT_FAILED;
+    return CE_SLEW_ERR_UNSPECIFIED;
+  }
 
   if (pins->axisSense.homeTrigger != OFF) {
     motor->setSynchronized(true);
     if (homingStage == HOME_NONE) {
+      homingResult = HOME_RESULT_ACTIVE;
       if (centerMode) homeCenterSearchDirection = DIR_REVERSE;
       homingStage = centerMode ? HOME_CENTER_EXIT : HOME_FAST;
     }
@@ -474,6 +492,8 @@ void Axis::autoSlewStop() {
 
 // emergency stops, with deacceleration by time
 void Axis::autoSlewAbort() {
+  if (homingStage != HOME_NONE && homingResult == HOME_RESULT_ACTIVE) homingResult = HOME_RESULT_FAILED;
+
   Direction direction = motor->getDirection();
   if (homingStage == HOME_NONE &&
       autoRate >= AR_RATE_BY_TIME_END &&
@@ -566,6 +586,7 @@ void Axis::poll() {
     }
     if ((long)(millis() - homeTimeoutTime) > 0) {
       V(axisPrefix); VLF("autoSlewHome timed out");
+      homingResult = HOME_RESULT_FAILED;
       autoSlewAbort();
     }
   }
@@ -596,7 +617,10 @@ void Axis::poll() {
         motor->setSlewing(false);
         autoRate = AR_NONE;
         freq = 0.0F;
-        if (homingStage == HOME_CENTER_GOTO) homingStage = HOME_NONE;
+        if (homingStage == HOME_CENTER_GOTO) {
+          homingStage = HOME_NONE;
+          homingResult = HOME_RESULT_SUCCESS;
+        }
         motor->setSynchronized(true);
         V(axisPrefix); VLF("slew stopped");
       } else {
@@ -649,13 +673,20 @@ void Axis::poll() {
             V(axisPrefix); VLF("autoSlewHome approach correction");
           }
         } else
-        if (homingStage == HOME_FINE) homingStage = HOME_NONE;
+        if (homingStage == HOME_FINE) {
+          homingStage = HOME_NONE;
+          homingResult = HOME_RESULT_SUCCESS;
+        }
         if (homingStage != HOME_NONE) {
           if (homingStage != HOME_CENTER_GOTO) {
             float f = fabs(slewFreq)/6.0F;
             if (f < 0.0003F) f = 0.0003F;
             setFrequencySlew(f);
-            autoSlewHome(SLEW_HOME_REFINE_TIME_LIMIT * 1000);
+            CommandError e = autoSlewHome(SLEW_HOME_REFINE_TIME_LIMIT * 1000);
+            if (e != CE_NONE) {
+              homingResult = HOME_RESULT_FAILED;
+              autoSlewAbort();
+            }
           }
         } else {
           V(axisPrefix); VLF("slew stopped");

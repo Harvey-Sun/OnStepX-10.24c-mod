@@ -100,6 +100,7 @@ typedef struct AxisErrors {
 
 enum AutoRate: uint8_t {AR_NONE, AR_RATE_BY_TIME_ABORT, AR_RATE_BY_TIME_END, AR_RATE_BY_DISTANCE, AR_RATE_BY_TIME_FORWARD, AR_RATE_BY_TIME_REVERSE};
 enum HomingStage: uint8_t {HOME_NONE, HOME_FINE, HOME_SLOW, HOME_FAST, HOME_CENTER_EXIT, HOME_CENTER_EDGE1, HOME_CENTER_EDGE2, HOME_CENTER_GOTO, HOME_CENTER_LIMIT_EXIT};
+enum HomingResult: uint8_t {HOME_RESULT_NONE, HOME_RESULT_ACTIVE, HOME_RESULT_SUCCESS, HOME_RESULT_FAILED};
 enum AxisMeasure: uint8_t {AXIS_MEASURE_UNKNOWN, AXIS_MEASURE_MICRONS, AXIS_MEASURE_DEGREES, AXIS_MEASURE_RADIANS};
 
 class Axis {
@@ -273,6 +274,9 @@ class Axis {
     // check if homing is in progress
     bool isHoming() { return homingStage != HOME_NONE; }
 
+    // check if the most recent homing operation completed successfully
+    bool homingSucceeded() { return homingResult == HOME_RESULT_SUCCESS; }
+
     // check if a home sensor is available
     inline bool hasHomeSense() { return pins->axisSense.homeTrigger != OFF; }
 
@@ -422,6 +426,7 @@ class Axis {
     float abortAccelTime = NAN;        // abort slew acceleration time in seconds
 
     HomingStage homingStage = HOME_NONE;
+    HomingResult homingResult = HOME_RESULT_NONE;
 
     const AxisPins *pins;
 

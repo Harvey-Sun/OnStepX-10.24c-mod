@@ -50,7 +50,7 @@ SenseInput::SenseInput(int pin, int initState, int32_t trigger) {
 int SenseInput::isOn() {
   int value = lastValue;
   if (isAnalog) {
-    #ifdef ESP32
+    #if defined(ESP32) && defined(ESP_ARDUINO_VERSION) && ESP_ARDUINO_VERSION >= 131072 + 3
       int sample = round((analogReadMilliVolts(pin)/3300.0F)*(float)ANALOG_READ_RANGE);
     #else
       int sample = analogRead(pin);
@@ -72,7 +72,7 @@ int SenseInput::isOn() {
 int SenseInput::changed() {
   int value = lastChangedValue;
   if (isAnalog) {
-    #ifdef ESP32
+    #if defined(ESP32) && defined(ESP_ARDUINO_VERSION) && ESP_ARDUINO_VERSION >= 131072 + 3
       int sample = round((analogReadMilliVolts(pin)/3300.0F)*(float)ANALOG_READ_RANGE);
     #else
       int sample = analogRead(pin);
@@ -106,7 +106,7 @@ void SenseInput::poll() {
 
 void SenseInput::reset() {
   if (isAnalog) {
-    #ifdef ESP32
+    #if defined(ESP32) && defined(ESP_ARDUINO_VERSION) && ESP_ARDUINO_VERSION >= 131072 + 3
       int sample = round((analogReadMilliVolts(pin)/3300.0F)*(float)ANALOG_READ_RANGE);
     #else
       int sample = analogRead(pin);

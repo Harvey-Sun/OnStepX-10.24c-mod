@@ -89,7 +89,11 @@ CommandError Home::request() {
       VLF("MSG: Mount, guiding to home");
       state = HS_HOMING;
       isRequestWithReset = false;
-      guide.startHome();
+      CommandError result = guide.startHome();
+      if (result != CE_NONE) {
+        VF("WRN: Mount, home guide failed to start (code "); V(result); VLF(")");
+        return result;
+      }
     } else {
       #if AXIS1_SECTOR_GEAR == OFF && AXIS2_TANGENT_ARM == OFF
         VLF("MSG: Mount, moving to home");
@@ -141,7 +145,11 @@ void Home::requestAborted() {
 
 // after finding home switches displace the mount axes as specified
 void Home::guideDone(bool success) {
-  if (!success) { state = HS_NONE; reset(isRequestWithReset); return; }
+  if (!success) {
+    VLF("WRN: Mount, homing failed; position was not reset to home");
+    requestAborted();
+    return;
+  }
 
   #if AXIS1_SECTOR_GEAR == OFF && AXIS2_TANGENT_ARM == OFF
     if (useOffset()) {

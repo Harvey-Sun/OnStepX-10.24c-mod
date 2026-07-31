@@ -45,7 +45,7 @@ void Thermistor::poll() {
 
     if (thermistorType >= 0 && devicePin[index] != OFF) {
 
-      #ifdef ESP32
+      #if defined(ESP32) && defined(ESP_ARDUINO_VERSION) && ESP_ARDUINO_VERSION >= 131072 + 3
         int counts = round((analogReadMilliVolts(devicePin[index])/3300.0F)*(float)ANALOG_READ_RANGE);
       #else
         int counts = analogRead(devicePin[index]);
