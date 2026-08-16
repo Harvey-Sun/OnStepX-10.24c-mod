@@ -53,7 +53,7 @@ class Guide {
     CommandError startSpiral(GuideRateSelect rateSelect, unsigned long guideTimeLimit);
 
     // start guide home (for use with home switches)
-    CommandError startHome();
+    CommandError startHome(Direction axis1HomeDirection = DIR_NONE, Direction axis2HomeDirection = DIR_NONE);
 
     // stop both axes of guide
     void stop();

@@ -190,7 +190,7 @@ CommandError Guide::startSpiral(GuideRateSelect rateSelect, unsigned long guideT
 }
 
 // start guide home (for use with home switches)
-CommandError Guide::startHome() {
+CommandError Guide::startHome(Direction axis1HomeDirection, Direction axis2HomeDirection) {
   #if GOTO_FEATURE == ON
     if (state == GU_HOME_GUIDE) { abort(); return CE_NONE; }
     if (guideActionAxis1 != GA_NONE || guideActionAxis2 != GA_NONE) return CE_SLEW_IN_MOTION;
@@ -206,7 +206,7 @@ CommandError Guide::startHome() {
       guideFinishTimeAxis1 = millis() + (unsigned long)(GUIDE_HOME_TIME_LIMIT * 1000.0);
       guideActionAxis1 = GA_HOME;
       axis1.setFrequencySlew(goTo.rate);
-      e = axis1.autoSlewHome();
+      e = axis1.autoSlewHome(0, axis1HomeDirection);
       if (e != CE_NONE) {
         abort();
         return e;
@@ -216,7 +216,7 @@ CommandError Guide::startHome() {
     guideFinishTimeAxis2 = millis() + (unsigned long)(GUIDE_HOME_TIME_LIMIT * 1000.0);
     guideActionAxis2 = GA_HOME;
     axis2.setFrequencySlew(goTo.rate*((float)(AXIS2_SLEW_RATE_PERCENT)/100.0F));
-    e = axis2.autoSlewHome();
+    e = axis2.autoSlewHome(0, axis2HomeDirection);
     if (e != CE_NONE) {
       abort();
       return e;

@@ -61,6 +61,9 @@ CommandError Home::request() {
     mount.enable(true);
     goTo.firstGoto = false;
 
+    Direction axis1HomeDirection = DIR_NONE;
+    Direction axis2HomeDirection = DIR_NONE;
+
     if (hasSense) {
       #if AXIS1_SECTOR_GEAR == OFF && AXIS2_TANGENT_ARM == OFF
         double a1 = axis1.getInstrumentCoordinate();
@@ -82,6 +85,18 @@ CommandError Home::request() {
         if (abs(a1) > degToRad(AXIS1_SENSE_HOME_DIST_LIMIT) - abs(arcsecToRad(settings.axis1.senseOffset))) return CE_SLEW_ERR_OUTSIDE_LIMITS;
         if (abs(a2) > degToRad(AXIS2_SENSE_HOME_DIST_LIMIT) - abs(arcsecToRad(settings.axis2.senseOffset))) return CE_SLEW_ERR_OUTSIDE_LIMITS;
 
+        if (fabs(a1) > arcsecToRad(AXIS1_HOME_TOLERANCE)) {
+          axis1HomeDirection = (a1 > 0.0) ? DIR_REVERSE : DIR_FORWARD;
+          VF("MSG: Mount, Axis1 electronic home direction ");
+          if (axis1HomeDirection == DIR_FORWARD) { VLF("forward"); } else { VLF("reverse"); }
+        }
+
+        if (fabs(a2) > arcsecToRad(AXIS2_HOME_TOLERANCE)) {
+          axis2HomeDirection = (a2 > 0.0) ? DIR_REVERSE : DIR_FORWARD;
+          VF("MSG: Mount, Axis2 electronic home direction ");
+          if (axis2HomeDirection == DIR_FORWARD) { VLF("forward"); } else { VLF("reverse"); }
+        }
+
         CommandError e = reset(false);
         if (e != CE_NONE) return e;
       #endif
@@ -89,7 +104,7 @@ CommandError Home::request() {
       VLF("MSG: Mount, guiding to home");
       state = HS_HOMING;
       isRequestWithReset = false;
-      CommandError result = guide.startHome();
+      CommandError result = guide.startHome(axis1HomeDirection, axis2HomeDirection);
       if (result != CE_NONE) {
         VF("WRN: Mount, home guide failed to start (code "); V(result); VLF(")");
         return result;

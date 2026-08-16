@@ -269,7 +269,7 @@ class Axis {
     CommandError autoSlew(Direction direction, float frequency = NAN);
 
     // slew to home using home sensor, with acceleration in "measures" per second per second
-    CommandError autoSlewHome(unsigned long timeout = 0);
+    CommandError autoSlewHome(unsigned long timeout = 0, Direction preferredDirection = DIR_NONE);
 
     // check if homing is in progress
     bool isHoming() { return homingStage != HOME_NONE; }
@@ -361,6 +361,8 @@ class Axis {
 
     bool homeCenterMode();
 
+    Direction autoRateDirection();
+
     Direction oppositeDirection(Direction direction);
     
     AxisErrors errors;
@@ -406,6 +408,9 @@ class Axis {
     long homeCenterEdge2Steps = 0;
     Direction homeCenterSearchDirection = DIR_REVERSE;
     Direction homeCenterLimitDirection = DIR_NONE;
+    float homeSearchSlewFreq = 0.0F;
+    bool homeCenterEdge1Captured = false;
+    bool homeCenterEdge2Captured = false;
 
     // rates (in measures per second) to control motor movement
     float freq = 0.0F;
